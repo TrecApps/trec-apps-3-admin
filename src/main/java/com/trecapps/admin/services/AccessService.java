@@ -25,8 +25,36 @@ public class AccessService {
     @Value("#{'${trecauth.permissions}'.split(',')}")
     List<String> permissions;
 
+    @Value("${trecauth.verify.perission:ADMIN_VERIFIED}")
+    String verifyPermission;
+
+    String grantVerify(String userId)
+    {
+        if(!trecAccountRepo.existsById(userId))
+            return "404: User Not found!";
+
+        try {
+            TcUser user = userStorageService.retrieveUser(userId);
+            List<String> roles = new ArrayList<String>(List.of(user.getAuthRoles()));
+
+            if(roles.contains(verifyPermission))
+                return "412: Permission already granted!";
+
+            roles.add(verifyPermission);
+
+            user.setAuthRoles(roles.toArray(new String[0]));
+            userStorageService.saveUser(user);
+            return "200: Success!";
+        } catch (JsonProcessingException e) {
+            return "500: Issue managing User Data";
+        }
+    }
+
     public String grant(String userId, String permission)
     {
+        if(verifyPermission.equals(permission))
+            return "403: This permission needs to go through the verification process";
+
         if(!trecAccountRepo.existsById(userId))
             return "404: User Not found!";
 

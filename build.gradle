@@ -37,6 +37,7 @@ dependencies {
 
     //Enable Trec-Auth
     implementation 'com.trecapps.auth:TrecAuth:0.0.30'
+    implementation 'com.trecapps.pictures:trec-picture-manager:0.1.1'
 
     // Spring Boot features
     implementation "org.springframework.boot:spring-boot-starter-web:$springbootVersion"
