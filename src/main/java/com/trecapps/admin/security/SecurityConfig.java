@@ -24,26 +24,30 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     }
     TrecAccountService trecAccountService;
     TrecSecurityContext trecSecurityContext;
-
-    String[] restrictedEndpoints = {
-            "/Users/passwordUpdate",
-            "/Users/Current",
-            "/Users/UserUpdate",
-            "/Sessions/**",
-            "/Email/**",
-            "/Brands/list",
-            "/Brands/New",
-            "/Brands/NewOwner/**",
-            "/Brands/login"
-    };
+//
+//    String[] restrictedEndpoints = {
+//            "/Users/passwordUpdate",
+//            "/Users/Current",
+//            "/Users/UserUpdate",
+//            "/Sessions/**",
+//            "/Email/**",
+//            "/Brands/list",
+//            "/Brands/New",
+//            "/Brands/NewOwner/**",
+//            "/Brands/login"
+//    };
 
     @Override
     protected void configure(HttpSecurity security) throws Exception
     {
         security.csrf().disable()
                 .authorizeRequests()
-                .anyRequest()
+                .antMatchers("/Verify/admin/*", "/Access/*")
                 .hasAnyAuthority("USER_ADMIN")
+                .and()
+                .authorizeRequests()
+                .anyRequest()
+                .authenticated()
                 .and()
                 .userDetailsService(trecAccountService)
                 .securityContext().securityContextRepository(trecSecurityContext).and()

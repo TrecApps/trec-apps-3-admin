@@ -8,6 +8,7 @@ import java.util.List;
 
 @Data
 public class VerificationRequest {
-    List<Picture> evidence;
+    List<String> evidence;
     List<String> approver;
+    boolean approved = false;
 }

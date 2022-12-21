@@ -6,6 +6,7 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.TaggedBlobItem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -17,6 +18,9 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class VerificationStorageService {
@@ -57,5 +61,14 @@ public class VerificationStorageService {
         BlobContainerClient containerClient = client.getBlobContainerClient("trec-apps-pictures");
         BlobClient client = containerClient.getBlobClient(String.format("%s_verify.json", id));
         client.upload(BinaryData.fromObject(request), true);
+        client.setTags(Map.of("Purpose",request.isApproved() ? "AppVerify":"IdVerify"));
+
+    }
+
+    List<String> RetrieveRequests()
+    {
+        BlobContainerClient containerClient = client.getBlobContainerClient("trec-apps-pictures");
+        return containerClient.findBlobsByTags("where=Purpose=IdVerify").stream()
+                .map(TaggedBlobItem::getName).collect(Collectors.toList());
     }
 }

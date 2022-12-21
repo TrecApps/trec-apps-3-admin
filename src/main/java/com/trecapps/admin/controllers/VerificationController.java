@@ -1,12 +1,17 @@
 package com.trecapps.admin.controllers;
 
 import com.azure.core.annotation.QueryParam;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.trecapps.admin.models.VerificationRequest;
 import com.trecapps.admin.services.VerificationService;
+import com.trecapps.auth.models.TcUser;
 import com.trecapps.auth.models.TrecAuthentication;
+import com.trecapps.auth.services.TrecAccountService;
+import com.trecapps.auth.services.UserStorageService;
 import com.trecapps.pictures.models.Picture;
 import com.trecapps.pictures.repos.PictureRepo;
 import com.trecapps.pictures.services.PictureManager;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -24,9 +29,10 @@ import java.util.Locale;
 
 @RestController
 @RequestMapping("/Verify")
+@Slf4j
 public class VerificationController {
 
-    @Value("${trecauth.verify.perission:ADMIN_VERIFIED}")
+    @Value("${trecauth.verify.permission:ADMIN_VERIFIED}")
     String verifyPermission;
 
     @Autowired
@@ -37,6 +43,9 @@ public class VerificationController {
 
     @Autowired
     PictureRepo pictureRepo;
+
+    @Autowired
+    UserStorageService userStorageService;
 
     private static final List<String> imageTypes = Arrays.asList(
             "apng",
@@ -54,6 +63,7 @@ public class VerificationController {
     @GetMapping(value = "/isVerified", consumes = MediaType.ALL_VALUE, produces = MediaType.TEXT_PLAIN_VALUE)
     ResponseEntity<String> isVerified(Authentication authentication)
     {
+        log.info("Made it to 'isVerified'");
         TrecAuthentication tAuth = (TrecAuthentication) authentication;
 
         for(GrantedAuthority authority :tAuth.getAuthorities())
@@ -116,19 +126,12 @@ public class VerificationController {
                 false);                                              // It's the profile pic so might as well be public
 
 
-        String[] results = pictureManager.setProfile(trecAuth.getAccount().getId(), id).split("[:]",2);
-
-        HttpStatus status = HttpStatus.valueOf(Integer.parseInt(results[0]));
-        String resultBody = results[1];
-
-        if(status.is2xxSuccessful())
-        {
-            results = verificationService.addEvidence(trecAuth.getAccount().getId(),
+            String[] results = verificationService.addEvidence(trecAuth.getAccount().getId(),
                     pictureManager.retrievePictureObject(id)).split("[:]", 2);
 
-            status = HttpStatus.valueOf(Integer.parseInt(results[0]));
-            resultBody = results[1];
-        }
+            HttpStatus status = HttpStatus.valueOf(Integer.parseInt(results[0]));
+            String resultBody = results[1];
+
 
         return new ResponseEntity<>(resultBody, status);
     }
@@ -145,8 +148,50 @@ public class VerificationController {
         return false;
     }
 
+    @GetMapping("/admin/listRequesters")
+    ResponseEntity<List<String>> getRequesterList()
+    {
+        return new ResponseEntity<>(verificationService.getRequesters(),HttpStatus.OK);
+    }
+
+    @GetMapping(value="/RequesterProfileType", produces = MediaType.TEXT_PLAIN_VALUE)
+    ResponseEntity<String> getProfileType(@RequestParam String user)
+    {
+        String extension = pictureManager.getProfilePicName(user);
+        if (extension == null) return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        MultiValueMap<String, String> header = new LinkedMultiValueMap<>();
+        header.add("Content-type", "text/plain");
+        return new ResponseEntity<>(extension, header, HttpStatus.OK);
+    }
+
+    @GetMapping("/RequesterProfile/{userId}")
+    ResponseEntity<byte[]> getPictureOfRequester(@PathVariable String userId, @RequestParam String ext)
+    {
+        byte[] data = pictureManager.getProfilePic(userId, ext);
+        if(data == null)
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        MultiValueMap<String, String> header = new LinkedMultiValueMap<>();
+        header.add("Content-type", String.format("image/%s", ext.toLowerCase(Locale.ROOT)));
+        return new ResponseEntity<>(data, header, HttpStatus.OK);
+    }
+
+    @GetMapping("/admin/RequesterInfo")
+    ResponseEntity<TcUser> getRequesterDetails(@RequestParam String userId)
+    {
+        try {
+            TcUser user = userStorageService.retrieveUser(userId);
+            user.setCurrentCode(null);
+            user.setBrands(null);
+            user.setUserProfile(null);
+            user.setCodeExpiration(null);
+            return new ResponseEntity<>(user, HttpStatus.OK);
+        } catch (JsonProcessingException e) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
+
     @GetMapping("/admin/listPic")
-    ResponseEntity<List<String>> getPictureIds(Authentication authentication, @QueryParam("userId")String userId)
+    ResponseEntity<List<String>> getPictureIds(Authentication authentication, @RequestParam("userId")String userId)
     {
         VerificationRequest request = verificationService.getRequest(userId);
         if(request == null)
@@ -154,9 +199,12 @@ public class VerificationController {
             return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
         }
         List<String> ret = new ArrayList<>();
-        for(Picture picId: request.getEvidence())
+        for(String picId: request.getEvidence())
         {
-            ret.add(String.format("%s.%s", picId.getId(), picId.getExtension()));
+            Picture pic = pictureManager.retrievePictureObject(picId);
+            if(pic == null)
+                continue;
+            ret.add(String.format("%s.%s", picId, pic.getExtension()));
         }
         return new ResponseEntity<>(ret, HttpStatus.OK);
     }

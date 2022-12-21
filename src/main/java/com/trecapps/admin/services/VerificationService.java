@@ -1,5 +1,6 @@
 package com.trecapps.admin.services;
 
+import com.azure.storage.blob.models.BlobStorageException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.trecapps.admin.models.VerificationRequest;
 import com.trecapps.pictures.models.Picture;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class VerificationService {
@@ -44,7 +46,7 @@ public class VerificationService {
         try {
             verificationStorageService.getVerificationRequest(userId);
             return "409:Verification Already Requested!";
-        } catch (JsonProcessingException e) {
+        } catch (JsonProcessingException | BlobStorageException e) {
             VerificationRequest newRequest = new VerificationRequest();
             newRequest.setApprover(new ArrayList<>());
             newRequest.setEvidence(new ArrayList<>());
@@ -57,8 +59,8 @@ public class VerificationService {
     {
         try{
             VerificationRequest request = verificationStorageService.getVerificationRequest(id);
-            List<Picture> evidence = request.getEvidence();
-            evidence.add(picture);
+            List<String> evidence = request.getEvidence();
+            evidence.add(picture.getId());
             verificationStorageService.saveVerificationRequest(id, request);
             return "200:Added!";
         } catch (JsonProcessingException e) {
@@ -72,6 +74,8 @@ public class VerificationService {
             VerificationRequest request = verificationStorageService.getVerificationRequest(target);
             List<String> evidence = request.getApprover();
             evidence.add(approver);
+            if(evidence.size() >= threshold)
+                request.setApproved(true);
             verificationStorageService.saveVerificationRequest(target, request);
             return evidence.size() >= threshold ? accessService.grantVerify(target) : "200:Added!";
         } catch (JsonProcessingException e) {
@@ -79,5 +83,9 @@ public class VerificationService {
         }
     }
 
+    public List<String> getRequesters()
+    {
+        return verificationStorageService.RetrieveRequests().stream().map((String name) -> name.replace("_verify.json", "")).collect(Collectors.toList());
+    }
 
 }
