@@ -68,7 +68,7 @@ public class VerificationStorageService {
     List<String> RetrieveRequests()
     {
         BlobContainerClient containerClient = client.getBlobContainerClient("trec-apps-pictures");
-        return containerClient.findBlobsByTags("where=Purpose=IdVerify").stream()
+        return containerClient.findBlobsByTags("\"Purpose\"='IdVerify'").stream()
                 .map(TaggedBlobItem::getName).collect(Collectors.toList());
     }
 }
