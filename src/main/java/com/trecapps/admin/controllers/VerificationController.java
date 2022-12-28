@@ -148,6 +148,8 @@ public class VerificationController {
         return false;
     }
 
+
+
     @GetMapping("/admin/listRequesters")
     ResponseEntity<List<String>> getRequesterList()
     {
@@ -191,7 +193,18 @@ public class VerificationController {
     }
 
     @GetMapping("/admin/listPic")
-    ResponseEntity<List<String>> getPictureIds(Authentication authentication, @RequestParam("userId")String userId)
+    ResponseEntity<List<String>> getPictureIds(@RequestParam("userId")String userId)
+    {
+        return getPictureList(userId);
+    }
+
+    @GetMapping("/listPic")
+    ResponseEntity<List<String>> getPictureIds(Authentication authentication)
+    {
+        return getPictureList(((TrecAuthentication)authentication).getAccount().getId());
+    }
+
+    ResponseEntity<List<String>> getPictureList(String userId)
     {
         VerificationRequest request = verificationService.getRequest(userId);
         if(request == null)
@@ -209,15 +222,54 @@ public class VerificationController {
         return new ResponseEntity<>(ret, HttpStatus.OK);
     }
 
-    @GetMapping("/admin/pic/{fileName}")
-    ResponseEntity<byte[]> getProfilePicture(@PathVariable("fileName")String fileName)
+    @GetMapping("/pic/{fileName}")
+    ResponseEntity<byte[]> getProfilePicture(Authentication authentication, @PathVariable("fileName")String fileName)
+    {
+        VerificationRequest request = verificationService.getRequest(((TrecAuthentication)authentication).getAccount().getId());
+        if(request == null)
+        {
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+        }
+
+        String[] filePieces = splitFileName(fileName);
+
+        boolean found = false;
+        for(String picId: request.getEvidence())
+        {
+            if(filePieces[0].compareTo(picId) == 0)
+            {
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
+
+        byte[] data = pictureManager.getPic(filePieces[0], filePieces[filePieces.length -1]);
+        if(data == null)
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        MultiValueMap<String, String> header = new LinkedMultiValueMap<>();
+        header.add("Content-type", String.format("image/%s", filePieces[filePieces.length - 1].toLowerCase(Locale.ROOT)));
+        return new ResponseEntity<>(data, header, HttpStatus.OK);
+    }
+
+    String[] splitFileName(String fileName)
     {
         String[] filePieces = fileName.split("[.]");
         String name = filePieces[0];
         for(int rust = 1; rust < (filePieces.length - 1); rust++)
             name = "." + filePieces[rust];
+        filePieces[0] = name;
+        return filePieces;
+    }
 
-        byte[] data = pictureManager.getPic(name, filePieces[filePieces.length -1]);
+    @GetMapping("/admin/pic/{fileName}")
+    ResponseEntity<byte[]> getProfilePicture(@PathVariable("fileName")String fileName)
+    {
+        String[] filePieces = splitFileName(fileName);
+
+
+        byte[] data = pictureManager.getPic(filePieces[0], filePieces[filePieces.length -1]);
         if(data == null)
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         MultiValueMap<String, String> header = new LinkedMultiValueMap<>();
