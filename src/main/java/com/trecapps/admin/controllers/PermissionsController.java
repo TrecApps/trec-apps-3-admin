@@ -25,7 +25,7 @@ public class PermissionsController {
         List<String> ret = new ArrayList<>();
         for(GrantedAuthority auth: trecAuth.getAuthorities())
         {
-            ret.add(authentication.getName());
+            ret.add(auth.getAuthority());
         }
         return new ResponseEntity<>(ret, HttpStatus.OK);
     }
